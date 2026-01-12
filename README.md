@@ -212,22 +212,31 @@ Default pizza size mappings (in cm diameter):
 
 ## Advanced Features
 
-### Custom Size Overrides
+### Custom Size Overrides (Optional)
 
-Create `restaurant_overrides.json` for restaurant-specific size mappings:
+If you discover restaurants with non-standard pizza sizes, you can create `restaurant_overrides.json` to override the dynamic size discovery:
 
-```json
-{
-  "Pizza Mare": {
-    "sizes": {
-      "οικογενειακή": 30
-    },
-    "url_patterns": ["pizza-mare"]
-  }
-}
-```
+1. Copy the example file:
+   ```bash
+   cp restaurant_overrides.example.json restaurant_overrides.json
+   ```
 
-### Cookies for Authenticated Scraping
+2. Edit `restaurant_overrides.json` with restaurant-specific sizes:
+   ```json
+   {
+     "Pizza Mare": {
+       "sizes": {
+         "οικογενειακή": 30,
+         "γίγας": 40
+       },
+       "url_patterns": ["pizza-mare", "pizzamare"]
+     }
+   }
+   ```
+
+**Note**: This file is optional. The scraper automatically discovers sizes from each store's catalog, so overrides are only needed for edge cases.
+
+### Cookies for Authenticated Scraping (Optional)
 
 Save authenticated cookies to `cookies.json` for accessing delivery-specific pricing:
 
