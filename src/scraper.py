@@ -229,7 +229,7 @@ class EfoodScraper:
                 
         except Exception as e:
             # Don't let this crash the scraper
-            pass
+            logger.debug(f"Popup close attempt failed: {e}")
 
     async def _get_restaurant_list(self, page: Page) -> list[dict]:
         """Get all restaurants from the list page."""
@@ -321,6 +321,7 @@ class EfoodScraper:
 
     async def _process_restaurant(self, page: Page, data: dict) -> Restaurant:
         """Process a single restaurant."""
+        data = data.copy()  # Avoid modifying caller's dict
         url = data["url"]
 
         # Make URL absolute if relative
@@ -428,6 +429,7 @@ class EfoodScraper:
 
     async def _process_restaurant_via_api(self, page: Page, data: dict) -> Restaurant:
         """Process a restaurant using the API instead of page scraping."""
+        data = data.copy()  # Avoid modifying caller's dict
 
         # Navigate to page to get true rating and resolve ID from final URL
         url = data["url"]
@@ -450,8 +452,8 @@ class EfoodScraper:
 
         try:
             await page.route("**/api.e-food.gr/**", capture_catalog_request)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Route setup failed: {e}")
 
         try:
             await page.goto(url)
@@ -488,8 +490,8 @@ class EfoodScraper:
         # Unroute to clean up
         try:
             await page.unroute("**/api.e-food.gr/**")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Unroute cleanup failed: {e}")
 
         # Priority 1: Captured from network request
         shop_id = captured_shop_id

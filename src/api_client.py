@@ -10,15 +10,21 @@ from pathlib import Path
 import aiohttp
 
 from .models import Deal, Restaurant
-from .catalog_parser import catalog_to_deals
+from .catalog_parser import catalog_to_deals, _parse_offer, discover_store_sizes
+from . import vfm
 
 logger = logging.getLogger("efood.api")
+
+
+class EfoodAPIError(Exception):
+    """Raised when e-food API returns an error response."""
+    pass
 
 
 # API configuration
 API_BASE = "https://api.e-food.gr/v3"
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "el",
     "Accept-Encoding": "gzip, deflate",
@@ -75,7 +81,7 @@ async def fetch_catalog(
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url, params=params, headers=headers) as response:
             if response.status != 200:
-                raise Exception(f"API error: {response.status}")
+                raise EfoodAPIError(f"API error: {response.status}")
 
             data = await response.json()
 
@@ -130,8 +136,6 @@ def _parse_catalog_dict(
     size_overrides: dict[str, int] | None = None,
 ) -> list[Deal]:
     """Parse catalog dict directly (without saving to file)."""
-    from .catalog_parser import _parse_offer, discover_store_sizes
-    from . import vfm
 
     if data.get("status") != "ok":
         return []

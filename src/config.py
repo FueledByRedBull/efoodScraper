@@ -13,6 +13,7 @@ class Config(BaseSettings):
     headless: bool = False
     timeout_ms: int = 60_000
     use_api: bool = True  # Use API instead of page scraping for deals
+    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0"
 
     delay_min_ms: int = 1000
     delay_max_ms: int = 3000
