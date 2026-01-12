@@ -1,5 +1,22 @@
+from pathlib import Path
+import json
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _load_restaurant_filters() -> tuple[list[str], list[str]]:
+    """Load restaurant filters from JSON file."""
+    filters_path = Path("restaurant_filters.json")
+    if filters_path.exists():
+        try:
+            data = json.loads(filters_path.read_text(encoding="utf-8"))
+            return data.get("skip_restaurants", []), data.get("allowed_restaurants", [])
+        except Exception:
+            pass
+    return [], []
+
+
+_skip_list, _allow_list = _load_restaurant_filters()
 
 
 class Config(BaseSettings):
@@ -18,20 +35,8 @@ class Config(BaseSettings):
     delay_min_ms: int = 1000
     delay_max_ms: int = 3000
     max_restaurants: int | None = None
-    skip_restaurants: list[str] = Field(default_factory=lambda: [
-        "Toronto",
-        "Pizza Fan",
-        "Pizza Volos",
-        "Lola e Luna",
-        "Grappa on the road",
-        "Sogno di San",
-        "Ιππόκαμπος",
-        "Egalite Experience",
-        "myVegan",
-        "Evelin",
-        "Pleasures",
-    ])
-    allowed_restaurants: list[str] = Field(default_factory=list)
+    skip_restaurants: list[str] = Field(default_factory=lambda: _skip_list)
+    allowed_restaurants: list[str] = Field(default_factory=lambda: _allow_list)
 
     output_dir: str = "output"
     cookies_file: str = "cookies.json"

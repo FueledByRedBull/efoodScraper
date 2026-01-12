@@ -38,6 +38,7 @@ cookies.json
 catalog_*.json
 output/
 restaurant_overrides.json
+restaurant_filters.json
 .env
 
 # Claude AI

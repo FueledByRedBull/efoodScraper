@@ -157,7 +157,8 @@ class EfoodScraper:
         accept_btn = page.get_by_role("button", name=re.compile(r"Αποδοχή|Accept", re.I))
         if await accept_btn.count() > 0:
             await accept_btn.first.click()
-            await page.wait_for_timeout(TIMEOUT_COOKIE_ACCEPT)
+            # Wait for cookie banner to disappear
+            await accept_btn.first.wait_for(state="hidden", timeout=5000).catch(lambda: None)
 
         # Check for Tyxeri Peiniata popup immediately after load/cookies
         await self._close_piniata_popup(page)
@@ -165,7 +166,7 @@ class EfoodScraper:
         # Scroll down multiple times to fully load the page and find closed stores button
         for _ in range(SCROLL_ITERATIONS):
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await page.wait_for_timeout(TIMEOUT_SCROLL)
+            await page.wait_for_load_state("networkidle", timeout=5000).catch(lambda: None)
             await self._close_piniata_popup(page)  # Close popup if it appears during scroll
 
         # Show closed stores - Try multiple selectors
@@ -180,9 +181,9 @@ class EfoodScraper:
             logger.debug("Found 'Show closed stores' button, clicking...")
             try:
                 await closed_btn.first.scroll_into_view_if_needed()
-                await page.wait_for_timeout(TIMEOUT_CLOSED_STORES_CLICK)
                 await closed_btn.first.click(force=True)
-                await page.wait_for_timeout(TIMEOUT_CLOSED_STORES_LOAD)
+                # Wait for network activity to settle after loading closed stores
+                await page.wait_for_load_state("networkidle", timeout=10000).catch(lambda: None)
                 logger.debug("Closed stores should now be visible.")
             except Exception as e:
                 logger.warning(f"Could not click closed stores button: {e}")
@@ -191,7 +192,7 @@ class EfoodScraper:
             # Last resort: click by text anywhere
             try:
                 await page.click("text=Δες τα κλειστά καταστήματα", timeout=TIMEOUT_CLOSED_STORES_TEXT)
-                await page.wait_for_timeout(TIMEOUT_CLOSED_STORES_LOAD)
+                await page.wait_for_load_state("networkidle", timeout=10000).catch(lambda: None)
                 logger.debug("Clicked via text selector.")
             except Exception:
                 logger.debug("Could not find closed stores button at all.")
@@ -217,7 +218,8 @@ class EfoodScraper:
                     for i in range(await close_buttons.count()):
                         if await close_buttons.nth(i).is_visible():
                             await close_buttons.nth(i).click()
-                            await page.wait_for_timeout(TIMEOUT_POPUP_CLOSE)
+                            # Wait for overlay to disappear
+                            await overlays.first.wait_for(state="hidden", timeout=3000).catch(lambda: None)
                             return
 
                 # 2. Try clicking coordinates (Top Right of screen) usually works for full screen ads
@@ -225,7 +227,7 @@ class EfoodScraper:
 
                 # 3. Fallback: Escape key is very effective for these
                 await page.keyboard.press("Escape")
-                await page.wait_for_timeout(TIMEOUT_POPUP_ESCAPE)
+                await overlays.first.wait_for(state="hidden", timeout=3000).catch(lambda: None)
                 
         except Exception as e:
             # Don't let this crash the scraper
@@ -238,7 +240,8 @@ class EfoodScraper:
         last_height = await page.evaluate("document.body.scrollHeight")
         for _ in range(LAZY_LOAD_SCROLL_ITERATIONS):
              await page.mouse.wheel(0, 5000)
-             await page.wait_for_timeout(TIMEOUT_LAZY_LOAD)
+             # Wait for network to be idle after scroll
+             await page.wait_for_load_state("networkidle", timeout=3000).catch(lambda: None)
              new_height = await page.evaluate("document.body.scrollHeight")
              if new_height == last_height:
                  break
@@ -333,7 +336,8 @@ class EfoodScraper:
 
         await page.goto(url)
         await page.wait_for_load_state("domcontentloaded")
-        await page.wait_for_timeout(TIMEOUT_DYNAMIC_CONTENT)
+        # Wait for dynamic content to load
+        await page.wait_for_load_state("networkidle", timeout=10000).catch(lambda: None)
 
         # Extract real restaurant name from page
         try:
@@ -458,7 +462,8 @@ class EfoodScraper:
         try:
             await page.goto(url)
             await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(TIMEOUT_API_CALLS)
+            # Wait for API calls to complete
+            await page.wait_for_load_state("networkidle", timeout=10000).catch(lambda: None)
 
             # Updated Name
             name_el = page.locator("h1[class*='cc-title'], h1")
@@ -590,7 +595,8 @@ class EfoodScraper:
         )
         if await offers_link.count() > 0:
             await offers_link.first.click()
-            await page.wait_for_timeout(TIMEOUT_OFFERS_CLICK)
+            # Wait for offers section to load
+            await page.wait_for_load_state("networkidle", timeout=5000).catch(lambda: None)
             logger.debug("Clicked on Προσφορές section")
 
     async def _discover_sizes_from_deal(self, page: Page) -> None:
@@ -607,13 +613,14 @@ class EfoodScraper:
         # Click on the first pizza item to open modal
         try:
             await pizza_items.first.click()
-            await page.wait_for_timeout(TIMEOUT_PIZZA_ITEM_CLICK)
+            # Wait for modal to appear
+            await page.locator("[class*='modal'], [class*='Modal']").first.wait_for(state="visible", timeout=5000).catch(lambda: None)
         except Exception as e:
             logger.debug("Click failed, checking for popup...")
             await self._close_piniata_popup(page)
             try:
                 await pizza_items.first.click(force=True)
-                await page.wait_for_timeout(TIMEOUT_PIZZA_ITEM_CLICK)
+                await page.locator("[class*='modal'], [class*='Modal']").first.wait_for(state="visible", timeout=5000).catch(lambda: None)
             except Exception:
                 logger.warning(f"Could not click pizza item: {e}")
                 return
@@ -622,7 +629,8 @@ class EfoodScraper:
         step1 = page.locator("text=/Βήμα 1/i")
         if await step1.count() > 0:
             await step1.first.click()
-            await page.wait_for_timeout(TIMEOUT_MODAL_STEP_CLICK)
+            # Wait a moment for expansion animation
+            await page.wait_for_load_state("networkidle", timeout=3000).catch(lambda: None)
             logger.debug("Expanded Βήμα 1")
 
         # Extract ALL sizes from the modal
@@ -630,7 +638,8 @@ class EfoodScraper:
 
         # Close modal
         await page.keyboard.press("Escape")
-        await page.wait_for_timeout(TIMEOUT_MODAL_CLOSE)
+        # Wait for modal to close
+        await page.locator("[class*='modal'], [class*='Modal']").first.wait_for(state="hidden", timeout=3000).catch(lambda: None)
 
     async def _extract_sizes_from_modal(self, page: Page) -> None:
         """Extract size name -> cm mapping from modal."""
@@ -716,14 +725,15 @@ class EfoodScraper:
                 try:
                     await item.first.scroll_into_view_if_needed()
                     await item.first.click(force=True)
-                    await page.wait_for_timeout(TIMEOUT_DEEP_SCAN_CLICK)
+                    # Wait for modal to appear
+                    await page.locator("[class*='modal'], [class*='Modal']").first.wait_for(state="visible", timeout=5000).catch(lambda: None)
                     
                     # Extract sizes
                     await self._extract_sizes_from_modal(page)
                     
                     # Close modal
                     await page.keyboard.press("Escape")
-                    await page.wait_for_timeout(TIMEOUT_MODAL_CLOSE)
+                    await page.locator("[class*='modal'], [class*='Modal']").first.wait_for(state="hidden", timeout=3000).catch(lambda: None)
 
                     # Check cache
                     size_name = self._extract_size_name(deal_name)

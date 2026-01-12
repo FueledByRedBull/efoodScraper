@@ -103,17 +103,40 @@ The configuration is automatically loaded from `.env` file when you run the scra
 
 ### Additional Configuration
 
-You can customize behavior by editing `.env` or [src/config.py](src/config.py):
+#### Restaurant Filtering
+
+Create `restaurant_filters.json` to customize which restaurants to scrape:
+
+1. **Copy the example file**:
+   ```bash
+   cp restaurant_filters.example.json restaurant_filters.json
+   ```
+
+2. **Edit the file**:
+   ```json
+   {
+     "skip_restaurants": [
+       "Toronto",
+       "Pizza Fan"
+     ],
+     "allowed_restaurants": []
+   }
+   ```
+
+- **`skip_restaurants`**: Blacklist (skip these restaurants)
+- **`allowed_restaurants`**: Whitelist (only scrape these, overrides blacklist)
+
+**Note**: The configuration is automatically loaded when you run the scraper.
+
+#### Other Settings
+
+You can customize behavior by editing `.env`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `EFOOD_HEADLESS` | Run browser in headless mode | `false` |
 | `EFOOD_USE_API` | Use API (faster) vs page scraping | `true` |
 | `EFOOD_MAX_RESTAURANTS` | Limit number of restaurants | `None` (all) |
-
-**Filter restaurants** by editing [src/config.py](src/config.py):
-- `skip_restaurants` - Blacklist (skip these)
-- `allowed_restaurants` - Whitelist (only scrape these, overrides blacklist)
 
 ## Usage
 
