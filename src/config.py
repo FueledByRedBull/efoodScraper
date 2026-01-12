@@ -6,9 +6,9 @@ class Config(BaseSettings):
     """Scraper configuration with validation."""
 
     base_url: str = "https://www.e-food.gr"
-    user_address: str = "YOUR_ADDRESS_ID"  # Volos
-    latitude: float = 0.0
-    longitude: float = 0.0
+    user_address: str = "YOUR_ADDRESS_ID"  # Get from e-food.gr URL
+    latitude: float = 0.0  # Your delivery location latitude
+    longitude: float = 0.0  # Your delivery location longitude
 
     headless: bool = False
     timeout_ms: int = 60_000
