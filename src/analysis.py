@@ -1,9 +1,12 @@
+import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from .models import ScrapeResult
+
+logger = logging.getLogger("efood.analysis")
 
 
 def to_dataframe(result: ScrapeResult) -> pd.DataFrame:
@@ -88,30 +91,30 @@ def generate_charts(df: pd.DataFrame, output_dir: str = "output/charts") -> None
     fig.savefig(f"{output_dir}/top10_deals.png", dpi=150)
     plt.close(fig)
 
-    print(f"Charts saved to {output_dir}/")
+    logger.info(f"Charts saved to {output_dir}/")
 
 
 def print_summary(stats: dict) -> None:
     """Print analysis summary to console."""
     if not stats:
-        print("No data to summarize.")
+        logger.info("No data to summarize.")
         return
 
-    print("\n" + "=" * 50)
-    print("SCRAPING SUMMARY")
-    print("=" * 50)
-    print(f"Total Restaurants: {stats['total_restaurants']}")
-    print(f"Total Deals: {stats['total_deals']}")
-    print(f"Average VFM: {stats['avg_vfm']} cm2/EUR")
-    print(f"\nBest Deal: {stats['best_deal']['deal'][:50]}")
-    print(f"  VFM: {stats['best_deal']['vfm_index']} cm2/EUR")
-    
+    logger.info("=" * 50)
+    logger.info("SCRAPING SUMMARY")
+    logger.info("=" * 50)
+    logger.info(f"Total Restaurants: {stats['total_restaurants']}")
+    logger.info(f"Total Deals: {stats['total_deals']}")
+    logger.info(f"Average VFM: {stats['avg_vfm']} cm2/EUR")
+    logger.info(f"Best Deal: {stats['best_deal']['deal'][:50]}")
+    logger.info(f"  VFM: {stats['best_deal']['vfm_index']} cm2/EUR")
+
     # Print categorized deals
     for qty in [2, 3, 4]:
         deals = stats["top_deals_by_qty"].get(qty, [])
         if not deals:
             continue
-            
-        print(f"\nTop 10 Deals with {qty} Pizzas:")
+
+        logger.info(f"Top 10 Deals with {qty} Pizzas:")
         for i, deal in enumerate(deals, 1):
-             print(f"  {i}. {deal['restaurant']} ({deal.get('rating', 'N/A')}) - {deal['deal'][:50]} : {deal['area_per_euro']} cm2/EUR (VFM: {round(deal['vfm_index'], 2)})")
+            logger.info(f"  {i}. {deal['restaurant']} ({deal.get('rating', 'N/A')}) - {deal['deal'][:50]} : {deal['area_per_euro']} cm2/EUR (VFM: {round(deal['vfm_index'], 2)})")

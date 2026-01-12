@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import random
 import re
 from pathlib import Path
@@ -8,8 +9,38 @@ from playwright.async_api import Locator, Page, async_playwright
 
 from . import vfm
 from .config import Config
+from .constants import (
+    BROWSER_VIEWPORT_WIDTH,
+    BROWSER_VIEWPORT_HEIGHT,
+    TIMEOUT_COOKIE_ACCEPT,
+    TIMEOUT_SCROLL,
+    TIMEOUT_CLOSED_STORES_CLICK,
+    TIMEOUT_CLOSED_STORES_LOAD,
+    TIMEOUT_CLOSED_STORES_TEXT,
+    TIMEOUT_POPUP_CLOSE,
+    TIMEOUT_POPUP_ESCAPE,
+    TIMEOUT_DYNAMIC_CONTENT,
+    TIMEOUT_API_CALLS,
+    TIMEOUT_OFFERS_CLICK,
+    TIMEOUT_PIZZA_ITEM_CLICK,
+    TIMEOUT_MODAL_STEP_CLICK,
+    TIMEOUT_DEEP_SCAN_CLICK,
+    TIMEOUT_MODAL_CLOSE,
+    TIMEOUT_LAZY_LOAD,
+    SCROLL_ITERATIONS,
+    LAZY_LOAD_SCROLL_ITERATIONS,
+    RATING_CANDIDATE_LIMIT,
+    CM_ELEMENT_ITERATION_LIMIT,
+    RATING_MIN,
+    RATING_MAX,
+    PRICE_MIN_FILTER,
+    TOP_DEALS_LIMIT,
+    DEAL_NAME_MAX_LENGTH,
+)
 from .models import Deal, Restaurant, ScrapeResult
 from . import api_client
+
+logger = logging.getLogger("efood.scraper")
 
 
 class EfoodScraper:
@@ -27,7 +58,7 @@ class EfoodScraper:
             try:
                 return json.loads(overrides_path.read_text(encoding="utf-8"))
             except Exception as e:
-                print(f"Warning: Could not load overrides file: {e}")
+                logger.warning(f"Could not load overrides file: {e}")
         return {}
 
     def _apply_restaurant_overrides(self, name: str, url: str) -> None:
@@ -52,7 +83,7 @@ class EfoodScraper:
         """Populate size cache from override data."""
         sizes = override_data.get("sizes", {})
         if sizes:
-            print(f"  Pre-populating size cache for {restaurant_key}")
+            logger.debug(f"Pre-populating size cache for {restaurant_key}")
             for size_name, diameter in sizes.items():
                 self._size_cache[size_name] = diameter
 
@@ -61,7 +92,7 @@ class EfoodScraper:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=self.config.headless)
             context = await browser.new_context(
-                viewport={"width": 1920, "height": 1080}
+                viewport={"width": BROWSER_VIEWPORT_WIDTH, "height": BROWSER_VIEWPORT_HEIGHT}
             )
 
             # Load cookies if they exist
@@ -88,10 +119,10 @@ class EfoodScraper:
 
         results = []
         for i, data in enumerate(restaurant_data, 1):
-            print(f"\n[{i}/{len(restaurant_data)}] {data['name'][:50]}")
+            logger.info(f"[{i}/{len(restaurant_data)}] {data['name'][:50]}")
 
             if self._should_skip(data["name"]):
-                print("  Skipped (in skip list)")
+                logger.debug("Skipped (in skip list)")
                 continue
 
             try:
@@ -101,7 +132,7 @@ class EfoodScraper:
                     restaurant = await self._process_restaurant(page, data)
                 results.append(restaurant)
             except Exception as e:
-                print(f"  Error: {e}")
+                logger.error(f"Error: {e}")
                 results.append(
                     Restaurant(
                         name=data["name"],
@@ -126,15 +157,15 @@ class EfoodScraper:
         accept_btn = page.get_by_role("button", name=re.compile(r"Αποδοχή|Accept", re.I))
         if await accept_btn.count() > 0:
             await accept_btn.first.click()
-            await page.wait_for_timeout(1000)
+            await page.wait_for_timeout(TIMEOUT_COOKIE_ACCEPT)
 
         # Check for Tyxeri Peiniata popup immediately after load/cookies
         await self._close_piniata_popup(page)
 
         # Scroll down multiple times to fully load the page and find closed stores button
-        for _ in range(3):
+        for _ in range(SCROLL_ITERATIONS):
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await page.wait_for_timeout(1500)
+            await page.wait_for_timeout(TIMEOUT_SCROLL)
             await self._close_piniata_popup(page)  # Close popup if it appears during scroll
 
         # Show closed stores - Try multiple selectors
@@ -146,24 +177,24 @@ class EfoodScraper:
             closed_btn = page.locator("button:has-text('κλειστά καταστήματα')")
         
         if await closed_btn.count() > 0:
-            print("  Found 'Show closed stores' button, clicking...")
+            logger.debug("Found 'Show closed stores' button, clicking...")
             try:
                 await closed_btn.first.scroll_into_view_if_needed()
-                await page.wait_for_timeout(500)
+                await page.wait_for_timeout(TIMEOUT_CLOSED_STORES_CLICK)
                 await closed_btn.first.click(force=True)
-                await page.wait_for_timeout(3000)  # Wait longer for closed stores to load
-                print("  Closed stores should now be visible.")
+                await page.wait_for_timeout(TIMEOUT_CLOSED_STORES_LOAD)
+                logger.debug("Closed stores should now be visible.")
             except Exception as e:
-                print(f"  Could not click closed stores button: {e}")
+                logger.warning(f"Could not click closed stores button: {e}")
         else:
-            print("  'Show closed stores' button not found. Trying text click...")
+            logger.debug("'Show closed stores' button not found. Trying text click...")
             # Last resort: click by text anywhere
             try:
-                await page.click("text=Δες τα κλειστά καταστήματα", timeout=5000)
-                await page.wait_for_timeout(3000)
-                print("  Clicked via text selector.")
+                await page.click("text=Δες τα κλειστά καταστήματα", timeout=TIMEOUT_CLOSED_STORES_TEXT)
+                await page.wait_for_timeout(TIMEOUT_CLOSED_STORES_LOAD)
+                logger.debug("Clicked via text selector.")
             except Exception:
-                print("  Could not find closed stores button at all.")
+                logger.debug("Could not find closed stores button at all.")
             
         # Check again after interaction
         await self._close_piniata_popup(page)
@@ -174,7 +205,7 @@ class EfoodScraper:
             # Check specifically for Peiniata or generic modals overlaying the page
             overlays = page.locator("text=Η Τυχερή Πεινιάτα").or_(page.locator(".modal-open"))
             if await overlays.count() > 0:
-                print("  Found potential blocking popup, attempting to close...")
+                logger.debug("Found potential blocking popup, attempting to close...")
                 
                 # 1. Try exact close button match for Peiniata (often top-right X)
                 # Looking at your screenshot, it's a dedicated close icon top right
@@ -186,7 +217,7 @@ class EfoodScraper:
                     for i in range(await close_buttons.count()):
                         if await close_buttons.nth(i).is_visible():
                             await close_buttons.nth(i).click()
-                            await page.wait_for_timeout(500)
+                            await page.wait_for_timeout(TIMEOUT_POPUP_CLOSE)
                             return
 
                 # 2. Try clicking coordinates (Top Right of screen) usually works for full screen ads
@@ -194,7 +225,7 @@ class EfoodScraper:
 
                 # 3. Fallback: Escape key is very effective for these
                 await page.keyboard.press("Escape")
-                await page.wait_for_timeout(1000)
+                await page.wait_for_timeout(TIMEOUT_POPUP_ESCAPE)
                 
         except Exception as e:
             # Don't let this crash the scraper
@@ -205,9 +236,9 @@ class EfoodScraper:
         
         # Scroll down to trigger lazy loading to ensure we find all requested restaurants
         last_height = await page.evaluate("document.body.scrollHeight")
-        for _ in range(5): # Scroll a few times
+        for _ in range(LAZY_LOAD_SCROLL_ITERATIONS):
              await page.mouse.wheel(0, 5000)
-             await page.wait_for_timeout(1000)
+             await page.wait_for_timeout(TIMEOUT_LAZY_LOAD)
              new_height = await page.evaluate("document.body.scrollHeight")
              if new_height == last_height:
                  break
@@ -285,7 +316,7 @@ class EfoodScraper:
             return results;
         }""")
 
-        print(f"Found {len(restaurants)} restaurants")
+        logger.info(f"Found {len(restaurants)} restaurants")
         return restaurants
 
     async def _process_restaurant(self, page: Page, data: dict) -> Restaurant:
@@ -301,14 +332,14 @@ class EfoodScraper:
 
         await page.goto(url)
         await page.wait_for_load_state("domcontentloaded")
-        await page.wait_for_timeout(3000)  # Wait for dynamic content
+        await page.wait_for_timeout(TIMEOUT_DYNAMIC_CONTENT)
 
         # Extract real restaurant name from page
         try:
             name_el = page.locator("h1[class*='cc-title'], h1")
             if await name_el.count() > 0:
                 data["name"] = await name_el.first.inner_text()
-                print(f"  Restaurant: {data['name']}")
+                logger.info(f"Restaurant: {data['name']}")
         except Exception:
             pass
 
@@ -321,7 +352,7 @@ class EfoodScraper:
             
             count = await rating_candidates.count()
             # Check the first few matches (rating usually appears early in DOM/header)
-            for i in range(min(count, 10)):
+            for i in range(min(count, RATING_CANDIDATE_LIMIT)):
                 el = rating_candidates.nth(i)
                 # Ensure it's visible to avoid hidden metadata
                 if not await el.is_visible():
@@ -335,7 +366,7 @@ class EfoodScraper:
                 try:
                     val = float(text.replace(",", "."))
                     # Rating must be between 1 and 5
-                    if 1.0 <= val <= 5.0:
+                    if RATING_MIN <= val <= RATING_MAX:
                         # Check context - usually near parentheses like "(245)"
                         # or has parent with "rating" class
                         parent_class = await el.evaluate("el => el.parentElement.className")
@@ -349,12 +380,12 @@ class EfoodScraper:
                             
                         if should_update:
                             data["rating"] = val
-                            print(f"  Rating (from page): {val}")
+                            logger.info(f"Rating (from page): {val}")
                             break
                 except ValueError:
                     continue
         except Exception as e:
-            print(f"  Rating extraction warning: {e}")
+            logger.warning(f"Rating extraction warning: {e}")
 
         # Reset size cache for new restaurant
         self._size_cache.clear()
@@ -371,13 +402,13 @@ class EfoodScraper:
         # Get all deals
         deals = await self._get_deals(page, data.get("rating"))
         
-        # Sort by VFM (highest first) and keep top 5
+        # Sort by VFM (highest first) and keep top deals
         deals.sort(key=lambda d: d.vfm.vfm_index, reverse=True)
-        top_deals = deals[:5]
+        top_deals = deals[:TOP_DEALS_LIMIT]
         
-        print(f"  Found {len(deals)} deals. Keeping top {len(top_deals)}:")
+        logger.info(f"Found {len(deals)} deals. Keeping top {len(top_deals)}:")
         for i, deal in enumerate(top_deals, 1):
-             print(f"    {i}. {deal.name} ({deal.size_cm}cm) - {deal.vfm.area_per_euro} cm²/€")
+             logger.info(f"  {i}. {deal.name} ({deal.size_cm}cm) - {deal.vfm.area_per_euro} cm2/EUR")
 
         return Restaurant(
             name=data["name"],
@@ -425,44 +456,45 @@ class EfoodScraper:
         try:
             await page.goto(url)
             await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(3000)  # Wait for API calls
+            await page.wait_for_timeout(TIMEOUT_API_CALLS)
 
             # Updated Name
             name_el = page.locator("h1[class*='cc-title'], h1")
             if await name_el.count() > 0:
                 data["name"] = await name_el.first.inner_text()
-                print(f"  Restaurant: {data['name']}")
+                logger.info(f"Restaurant: {data['name']}")
 
             # Updated Rating (Crucial for closed stores)
             rating_candidates = page.locator("span, div").filter(
                 has_text=re.compile(r"^\s*\d+[.,]\d+\s*$")
             )
             count = await rating_candidates.count()
-            for i in range(min(count, 10)):
+            for i in range(min(count, RATING_CANDIDATE_LIMIT)):
                 el = rating_candidates.nth(i)
                 if not await el.is_visible(): continue
                 text = (await el.inner_text()).strip()
                 if "€" in text or "%" in text: continue
                 try:
                     val = float(text.replace(",", "."))
-                    if 1.0 <= val <= 5.0:
+                    if RATING_MIN <= val <= RATING_MAX:
                         data["rating"] = val
-                        print(f"  Rating (from page): {val}")
+                        logger.info(f"Rating (from page): {val}")
                         break
-                except: continue
+                except ValueError:
+                    continue
         except Exception as e:
-            print(f"  Page navigation warning: {e}")
+            logger.warning(f"Page navigation warning: {e}")
 
         # Unroute to clean up
         try:
             await page.unroute("**/api.e-food.gr/**")
-        except:
+        except Exception:
             pass
 
         # Priority 1: Captured from network request
         shop_id = captured_shop_id
         if shop_id:
-            print(f"  Captured shop_id from API: {shop_id}")
+            logger.debug(f"Captured shop_id from API: {shop_id}")
 
         # Priority 2: Extract from current URL
         if not shop_id:
@@ -493,13 +525,13 @@ class EfoodScraper:
                         # Skip if it matches user_address (common false positive)
                         if str(found_id) != self.config.user_address:
                             shop_id = found_id
-                            print(f"  Found shop_id: {shop_id}")
+                            logger.debug(f"Found shop_id: {shop_id}")
                             break
             except Exception as e:
-                print(f"  Content extraction error: {e}")
+                logger.error(f"Content extraction error: {e}")
 
         if not shop_id:
-            print(f"  Could not extract shop_id, falling back to empty deals")
+            logger.warning("Could not extract shop_id, falling back to empty deals")
             return Restaurant(
                 name=data["name"],
                 url=data["url"],
@@ -522,13 +554,13 @@ class EfoodScraper:
                 size_overrides=size_overrides,
             )
 
-            # Sort by VFM and keep top 5
+            # Sort by VFM and keep top deals
             deals.sort(key=lambda d: d.vfm.vfm_index, reverse=True)
-            top_deals = deals[:5]
+            top_deals = deals[:TOP_DEALS_LIMIT]
 
-            print(f"  Found {len(deals)} deals via API. Top {len(top_deals)}:")
+            logger.info(f"Found {len(deals)} deals via API. Top {len(top_deals)}:")
             for i, deal in enumerate(top_deals, 1):
-                print(f"    {i}. VFM:{deal.vfm.vfm_index:.1f} | {deal.quantity}x{deal.size_cm}cm @ {deal.price:.2f}€")
+                logger.info(f"  {i}. VFM:{deal.vfm.vfm_index:.1f} | {deal.quantity}x{deal.size_cm}cm @ {deal.price:.2f}EUR")
 
             return Restaurant(
                 name=data["name"],
@@ -539,7 +571,7 @@ class EfoodScraper:
             )
 
         except Exception as e:
-            print(f"  API error: {e}")
+            logger.error(f"API error: {e}")
             return Restaurant(
                 name=data["name"],
                 url=data["url"],
@@ -556,8 +588,8 @@ class EfoodScraper:
         )
         if await offers_link.count() > 0:
             await offers_link.first.click()
-            await page.wait_for_timeout(1500)
-            print("  Clicked on Προσφορές section")
+            await page.wait_for_timeout(TIMEOUT_OFFERS_CLICK)
+            logger.debug("Clicked on Προσφορές section")
 
     async def _discover_sizes_from_deal(self, page: Page) -> None:
         """Discover sizes by clicking on the first pizza deal and expanding Βήμα 1."""
@@ -567,36 +599,36 @@ class EfoodScraper:
         )
 
         if await pizza_items.count() == 0:
-            print("  No pizza items found to discover sizes")
+            logger.debug("No pizza items found to discover sizes")
             return
 
         # Click on the first pizza item to open modal
         try:
             await pizza_items.first.click()
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(TIMEOUT_PIZZA_ITEM_CLICK)
         except Exception as e:
-            print(f"  Click failed, checking for popup...")
+            logger.debug("Click failed, checking for popup...")
             await self._close_piniata_popup(page)
             try:
                 await pizza_items.first.click(force=True)
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(TIMEOUT_PIZZA_ITEM_CLICK)
             except Exception:
-                print(f"  Could not click pizza item: {e}")
+                logger.warning(f"Could not click pizza item: {e}")
                 return
 
         # Click on "Βήμα 1" to expand size selector
         step1 = page.locator("text=/Βήμα 1/i")
         if await step1.count() > 0:
             await step1.first.click()
-            await page.wait_for_timeout(1500)
-            print("  Expanded Βήμα 1")
+            await page.wait_for_timeout(TIMEOUT_MODAL_STEP_CLICK)
+            logger.debug("Expanded Βήμα 1")
 
         # Extract ALL sizes from the modal
         await self._extract_sizes_from_modal(page)
 
         # Close modal
         await page.keyboard.press("Escape")
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(TIMEOUT_MODAL_CLOSE)
 
     async def _extract_sizes_from_modal(self, page: Page) -> None:
         """Extract size name -> cm mapping from modal."""
@@ -620,7 +652,7 @@ class EfoodScraper:
             size_name = self._normalize_size_name(size_name_raw)
             if size_name and size_name not in self._size_cache:
                 self._size_cache[size_name] = diameter
-                print(f"    Cached: {size_name} = {diameter}cm")
+                logger.debug(f"Cached: {size_name} = {diameter}cm")
 
         # Also look for standalone cm values
         if await modal.count() > 0:
@@ -630,7 +662,7 @@ class EfoodScraper:
             
         count = await cm_elements.count()
 
-        for i in range(min(count, 10)):  # Limit to avoid too many iterations
+        for i in range(min(count, CM_ELEMENT_ITERATION_LIMIT)):
             try:
                 el = cm_elements.nth(i)
                 text = await el.inner_text(timeout=500)
@@ -638,14 +670,14 @@ class EfoodScraper:
                     size_name = self._extract_size_name(text)
                     if size_name and size_name not in self._size_cache:
                         self._size_cache[size_name] = diameter
-                        print(f"    Cached: {size_name} = {diameter}cm")
+                        logger.debug(f"Cached: {size_name} = {diameter}cm")
                     elif not size_name and "default" not in self._size_cache:
                         self._size_cache["default"] = diameter
             except Exception:
                 continue
 
         if self._size_cache:
-            print(f"  Size cache: {self._size_cache}")
+            logger.debug(f"Size cache: {self._size_cache}")
 
     def _normalize_size_name(self, raw: str) -> str | None:
         """Normalize size name to standard form."""
@@ -668,7 +700,7 @@ class EfoodScraper:
 
     async def _deep_scan_deal_size(self, page: Page, deal_name: str) -> int | None:
         """Deep scan a specific deal by opening its modal to find size."""
-        print(f"    Deep scanning: {deal_name[:30]}...")
+        logger.debug(f"Deep scanning: {deal_name[:30]}...")
 
         try:
             # Use get_by_text for safer matching of special characters
@@ -682,26 +714,26 @@ class EfoodScraper:
                 try:
                     await item.first.scroll_into_view_if_needed()
                     await item.first.click(force=True)
-                    await page.wait_for_timeout(1000)
+                    await page.wait_for_timeout(TIMEOUT_DEEP_SCAN_CLICK)
                     
                     # Extract sizes
                     await self._extract_sizes_from_modal(page)
                     
                     # Close modal
                     await page.keyboard.press("Escape")
-                    await page.wait_for_timeout(500)
-                    
+                    await page.wait_for_timeout(TIMEOUT_MODAL_CLOSE)
+
                     # Check cache
                     size_name = self._extract_size_name(deal_name)
                     if size_name and size_name in self._size_cache:
                         return self._size_cache[size_name]
                     return self._size_cache.get("default")
                 except Exception as e:
-                    print(f"      Interaction failed: {e}")
+                    logger.debug(f"Interaction failed: {e}")
                     # Ensure modal closed
                     await page.keyboard.press("Escape")
         except Exception as e:
-            print(f"      Deep scan failed: {e}")
+            logger.debug(f"Deep scan failed: {e}")
             
         return None
 
@@ -753,7 +785,7 @@ class EfoodScraper:
             price = raw["price"]
             quantity = raw["quantity"]
 
-            if price < 5:  # Skip too-cheap items
+            if price < PRICE_MIN_FILTER:
                 continue
 
             # Extract size from FULL deal name text
@@ -777,14 +809,14 @@ class EfoodScraper:
                 size_cm = await self._deep_scan_deal_size(page, name)
 
             if not size_cm:
-                print(f"    Skipped (no size): {name[:40]}...")
+                logger.debug(f"Skipped (no size): {name[:40]}...")
                 continue
 
             vfm_metrics = vfm.calculate_vfm(quantity, size_cm, price, rating)
 
             deals.append(
                 Deal(
-                    name=name[:100].strip(),
+                    name=name[:DEAL_NAME_MAX_LENGTH].strip(),
                     quantity=quantity,
                     size_cm=size_cm,
                     price=price,
@@ -792,7 +824,7 @@ class EfoodScraper:
                 )
             )
 
-            print(f"    {quantity}x {size_name or 'default'} ({size_cm}cm) @ {price}€ -> VFM: {vfm_metrics.vfm_index}")
+            logger.debug(f"{quantity}x {size_name or 'default'} ({size_cm}cm) @ {price}EUR -> VFM: {vfm_metrics.vfm_index}")
 
         return deals
 

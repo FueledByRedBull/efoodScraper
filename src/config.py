@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +41,38 @@ class Config(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+    @field_validator("latitude")
+    @classmethod
+    def validate_latitude(cls, v: float) -> float:
+        """Validate latitude is within valid range."""
+        if not -90.0 <= v <= 90.0:
+            raise ValueError("Latitude must be between -90 and 90")
+        return v
+
+    @field_validator("longitude")
+    @classmethod
+    def validate_longitude(cls, v: float) -> float:
+        """Validate longitude is within valid range."""
+        if not -180.0 <= v <= 180.0:
+            raise ValueError("Longitude must be between -180 and 180")
+        return v
+
+    @field_validator("timeout_ms")
+    @classmethod
+    def validate_timeout(cls, v: int) -> int:
+        """Validate timeout is reasonable."""
+        if v < 1000:
+            raise ValueError("timeout_ms must be at least 1000ms")
+        return v
+
+    @field_validator("delay_max_ms")
+    @classmethod
+    def validate_delay_order(cls, v: int, info) -> int:
+        """Validate delay_max_ms is greater than or equal to delay_min_ms."""
+        if "delay_min_ms" in info.data and v < info.data["delay_min_ms"]:
+            raise ValueError("delay_max_ms must be >= delay_min_ms")
+        return v
 
 
 # Size name to diameter mapping (in cm)

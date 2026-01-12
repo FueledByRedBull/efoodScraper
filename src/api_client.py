@@ -2,6 +2,8 @@
 E-food.gr API client for fetching restaurant catalogs.
 """
 import json
+import logging
+import re
 import uuid
 from pathlib import Path
 
@@ -9,6 +11,8 @@ import aiohttp
 
 from .models import Deal, Restaurant
 from .catalog_parser import catalog_to_deals
+
+logger = logging.getLogger("efood.api")
 
 
 # API configuration
@@ -67,7 +71,8 @@ async def fetch_catalog(
 
     headers = _generate_session_headers()
 
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(url, params=params, headers=headers) as response:
             if response.status != 200:
                 raise Exception(f"API error: {response.status}")
@@ -194,7 +199,7 @@ async def get_restaurant_deals(
     # URL format: /delivery/volos/la-strada-7527410 or /menu/la-strada-7527410
     match = re.search(r"-(\d+)(?:\?|$)", restaurant.url)
     if not match:
-        print(f"  Could not extract shop_id from URL: {restaurant.url}")
+        logger.warning(f"Could not extract shop_id from URL: {restaurant.url}")
         return []
 
     shop_id = int(match.group(1))
@@ -209,5 +214,5 @@ async def get_restaurant_deals(
         )
         return deals
     except Exception as e:
-        print(f"  API fetch error for {restaurant.name}: {e}")
+        logger.error(f"API fetch error for {restaurant.name}: {e}")
         return []

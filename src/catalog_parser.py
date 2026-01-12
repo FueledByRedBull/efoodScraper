@@ -3,6 +3,7 @@ Parser for e-food.gr catalog JSON files.
 Extracts pizza deals and calculates VFM metrics.
 """
 import json
+import logging
 import re
 from pathlib import Path
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from dataclasses import dataclass
 from .config import SIZE_DIAMETERS
 from .models import Deal, VFMMetrics
 from . import vfm
+
+logger = logging.getLogger("efood.parser")
 
 
 @dataclass
@@ -114,7 +117,7 @@ def discover_store_sizes(categories: list) -> dict[str, int]:
                     extract_size_mapping(item.get("description", ""))
 
     if discovered_sizes:
-        print(f"  [Scraper] Discovered store-specific sizes: {discovered_sizes}")
+        logger.debug(f"Discovered store-specific sizes: {discovered_sizes}")
         
     return discovered_sizes
 
@@ -316,16 +319,15 @@ def catalog_to_deals(
 
 def print_parsed_deals(deals: list[ParsedDeal]) -> None:
     """Print parsed deals for debugging."""
-    print(f"\n{'='*60}")
-    print(f"Parsed {len(deals)} pizza deals from catalog")
-    print(f"{'='*60}\n")
+    logger.info("=" * 60)
+    logger.info(f"Parsed {len(deals)} pizza deals from catalog")
+    logger.info("=" * 60)
 
     for deal in deals:
         size_info = f"{deal.size_name} ({deal.size_cm}cm)" if deal.size_cm else f"{deal.size_name or 'unknown'} (?cm)"
         price_info = f"{deal.price:.2f}EUR" if deal.price else "dynamic"
-        print(f"  {deal.quantity}x {size_info} @ {price_info}")
-        print(f"    Title: {deal.title}")
-        print()
+        logger.info(f"  {deal.quantity}x {size_info} @ {price_info}")
+        logger.info(f"    Title: {deal.title}")
 
 
 if __name__ == "__main__":
@@ -337,12 +339,12 @@ if __name__ == "__main__":
     else:
         catalog_file = "catalog_7527410.json"
 
-    print(f"Parsing: {catalog_file}")
+    logger.info(f"Parsing: {catalog_file}")
     parsed = parse_catalog(catalog_file)
     print_parsed_deals(parsed)
 
-    print("\n--- Converting to Deals with VFM (rating=4.5) ---\n")
+    logger.info("--- Converting to Deals with VFM (rating=4.5) ---")
     deals = catalog_to_deals(catalog_file, rating=4.5)
 
     for deal in sorted(deals, key=lambda d: d.vfm.vfm_index, reverse=True):
-        print(f"  VFM: {deal.vfm.vfm_index:6.2f} | {deal.quantity}x {deal.size_cm}cm @ {deal.price:.2f}EUR | {deal.name}")
+        logger.info(f"  VFM: {deal.vfm.vfm_index:6.2f} | {deal.quantity}x {deal.size_cm}cm @ {deal.price:.2f}EUR | {deal.name}")

@@ -1,6 +1,6 @@
 # 🍕 E-Food.gr Pizza VFM Scraper
 
-A sophisticated web scraper that analyzes pizza deals from e-food.gr to find the best value-for-money offers in Volos, Greece. The scraper uses Playwright for automation and calculates Value For Money (VFM) metrics based on pizza size, price, and restaurant rating.
+A sophisticated web scraper that analyzes pizza deals from e-food.gr to find the best value-for-money offers in Greece. The scraper uses Playwright for automation and calculates Value For Money (VFM) metrics based on pizza size, price, and restaurant rating.
 
 ## Features
 
@@ -34,8 +34,8 @@ Where:
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/efood-pizza-scraper.git
-cd efood-pizza-scraper
+git clone https://github.com/FueledByRedBull/efoodScraper.git
+cd efoodScraper
 ```
 
 2. **Create a virtual environment**
@@ -191,20 +191,22 @@ Top 10 Deals with 2 Pizzas:
 ## Project Structure
 
 ```
-efood-pizza-scraper/
+efoodScraper/
 ├── src/
 │   ├── __init__.py
 │   ├── analysis.py           # Analysis and reporting logic
-│   ├── api_client.py          # E-food API client
-│   ├── catalog_parser.py      # JSON catalog parser
-│   ├── config.py              # Configuration settings
-│   ├── export.py              # CSV/JSON export functions
-│   ├── models.py              # Data models (Restaurant, Deal, VFM)
-│   ├── scraper.py             # Main Playwright scraper
-│   └── vfm.py                 # VFM calculation functions
-├── output/                    # Generated reports (gitignored)
-├── main.py                    # Entry point
-├── requirements.txt           # Python dependencies
+│   ├── api_client.py         # E-food API client
+│   ├── catalog_parser.py     # JSON catalog parser
+│   ├── config.py             # Configuration settings
+│   ├── constants.py          # Centralized constants
+│   ├── export.py             # CSV/JSON export functions
+│   ├── logging_config.py     # Logging configuration
+│   ├── models.py             # Data models (Restaurant, Deal, VFM)
+│   ├── scraper.py            # Main Playwright scraper
+│   └── vfm.py                # VFM calculation functions
+├── output/                   # Generated reports (gitignored)
+├── main.py                   # Entry point
+├── requirements.txt          # Python dependencies
 ├── .gitignore
 └── README.md
 ```
@@ -266,6 +268,11 @@ Save authenticated cookies to `cookies.json` for accessing delivery-specific pri
 ]
 ```
 
+**Security Warning**: The `cookies.json` file contains sensitive personal information including session tokens, addresses, and coordinates. This file is gitignored by default but you should:
+- Never commit this file to version control
+- Keep it private and do not share
+- Regenerate cookies periodically
+
 ## Troubleshooting
 
 ### Playwright Installation Issues
@@ -318,4 +325,4 @@ This tool is for educational purposes only. Please respect e-food.gr's terms of 
 
 ---
 
-**Made with ❤️ for finding the best pizza deals in Volos**
+**Made with love for finding the best pizza deals**
