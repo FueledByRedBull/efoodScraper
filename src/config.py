@@ -6,9 +6,9 @@ class Config(BaseSettings):
     """Scraper configuration with validation."""
 
     base_url: str = "https://www.e-food.gr"
-    user_address: str = "YOUR_ADDRESS_ID"  # Get from e-food.gr URL
-    latitude: float = 0.0  # Your delivery location latitude
-    longitude: float = 0.0  # Your delivery location longitude
+    user_address: str  # Required: Get from e-food.gr Network tab
+    latitude: float    # Required: Your delivery location latitude
+    longitude: float   # Required: Your delivery location longitude
 
     headless: bool = False
     timeout_ms: int = 60_000
@@ -36,7 +36,11 @@ class Config(BaseSettings):
     cookies_file: str = "cookies.json"
     overrides_file: str = "restaurant_overrides.json"
 
-    model_config = SettingsConfigDict(env_prefix="EFOOD_")
+    model_config = SettingsConfigDict(
+        env_prefix="EFOOD_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
 
 
 # Size name to diameter mapping (in cm)

@@ -69,59 +69,51 @@ playwright install chromium
 
 ## Configuration
 
-### Getting Your Location Coordinates
+### Quick Setup with .env File
 
-**REQUIRED**: Before running the scraper, you need to configure your delivery location:
+**REQUIRED**: Configure your delivery location before running:
 
-1. Open e-food.gr in your browser and select your delivery address
-2. Navigate to any restaurant page (e.g., pizza category)
-3. Open Developer Tools (F12) → **Network** tab
-4. Look for a request to `catalog?shop_id=...` or similar API endpoint
-5. Click on it and check the **Query String Parameters** or **Payload**:
-   - Copy the `latitude` value (e.g., `0.0`)
-   - Copy the `longitude` value (e.g., `0.0`)
-   - Copy the `user_address` ID from the URL or parameters
+1. **Copy the example file**:
+   ```bash
+   cp .env.example .env
+   ```
 
-### Edit Configuration
+2. **Find your coordinates** from e-food.gr:
+   - Open e-food.gr in your browser and select your delivery address
+   - Navigate to any restaurant page (e.g., pizza category)
+   - Open Developer Tools (**F12**) → **Network** tab
+   - Look for a request to `catalog?shop_id=...` or similar API endpoint
+   - Click on it and check the **Query String Parameters** or **Payload**:
+     - Copy the `latitude` value (e.g., `0.0`)
+     - Copy the `longitude` value (e.g., `0.0`)
+     - Copy the `user_address` ID from the URL or parameters
 
-Edit [src/config.py](src/config.py) with your location data:
+3. **Edit `.env` file** with your values:
+   ```bash
+   EFOOD_USER_ADDRESS=YOUR_ADDRESS_ID
+   EFOOD_LATITUDE=0.0
+   EFOOD_LONGITUDE=0.0
+   
+   # Optional settings
+   EFOOD_HEADLESS=false
+   EFOOD_USE_API=true
+   ```
 
-```python
-class Config(BaseSettings):
-    base_url: str = "https://www.e-food.gr"
-    user_address: str = "YOUR_ADDRESS_ID"  # From URL or network request
-    latitude: float = 0.0                   # Your latitude from network tab
-    longitude: float = 0.0                  # Your longitude from network tab
-    
-    headless: bool = False           # Set to True for headless mode
-    use_api: bool = True             # Use API (faster) vs page scraping
-    
-    max_restaurants: int | None = None  # Limit number of restaurants
-    skip_restaurants: list[str] = [...]  # Blacklist
-    allowed_restaurants: list[str] = []  # Whitelist (overrides blacklist)
-```
+The configuration is automatically loaded from `.env` file when you run the scraper.
 
-**Alternative**: Use environment variables (see below).
+### Additional Configuration
 
-### Environment Variables
+You can customize behavior by editing `.env` or [src/config.py](src/config.py):
 
-You can override configuration using environment variables with `EFOOD_` prefix:
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `EFOOD_HEADLESS` | Run browser in headless mode | `false` |
+| `EFOOD_USE_API` | Use API (faster) vs page scraping | `true` |
+| `EFOOD_MAX_RESTAURANTS` | Limit number of restaurants | `None` (all) |
 
-```bash
-# Windows PowerShell
-$env:EFOOD_USER_ADDRESS = "12345678"
-$env:EFOOD_LATITUDE = "0.0"
-$env:EFOOD_LONGITUDE = "0.0"
-$env:EFOOD_HEADLESS = "true"
-$env:EFOOD_MAX_RESTAURANTS = "10"
-
-# macOS/Linux
-export EFOOD_USER_ADDRESS="12345678"
-export EFOOD_LATITUDE=0.0
-export EFOOD_LONGITUDE=0.0
-export EFOOD_HEADLESS=true
-export EFOOD_MAX_RESTAURANTS=10
-```
+**Filter restaurants** by editing [src/config.py](src/config.py):
+- `skip_restaurants` - Blacklist (skip these)
+- `allowed_restaurants` - Whitelist (only scrape these, overrides blacklist)
 
 ## Usage
 
