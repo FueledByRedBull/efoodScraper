@@ -176,33 +176,53 @@ class EfoodScraper:
             await self._close_piniata_popup(page)  # Close popup if it appears during scroll
 
         # Show closed stores - Try multiple selectors
-        # The button contains exact text "Δες τα κλειστά καταστήματα"
         closed_btn = page.get_by_role("button", name=re.compile(r"Δες τα κλειστά", re.I))
         
         if await closed_btn.count() == 0:
-            # Fallback: try locator with text filter
             closed_btn = page.locator("button:has-text('κλειστά καταστήματα')")
         
         if await closed_btn.count() > 0:
             logger.debug("Found 'Show closed stores' button, clicking...")
             try:
+                # Get initial count of restaurant links
+                initial_count = await page.locator('a[href*="/menu/"], a[href*="/delivery/"]').count()
+                
                 await closed_btn.first.scroll_into_view_if_needed()
                 await closed_btn.first.click(force=True)
-                # Wait for network activity to settle after loading closed stores
+                
+                # Wait for new restaurants to appear (closed stores)
+                try:
+                    await page.wait_for_function(
+                        f"document.querySelectorAll('a[href*=\"/menu/\"], a[href*=\"/delivery/\"]').length > {initial_count}",
+                        timeout=10000
+                    )
+                except Exception:
+                    pass
+                
+                # Additional wait for network to settle
                 try:
                     await page.wait_for_load_state("networkidle", timeout=10000)
                 except Exception:
                     pass
-                logger.debug("Closed stores should now be visible.")
+                    
+                # Scroll again after loading closed stores to ensure all are visible
+                for _ in range(SCROLL_ITERATIONS):
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await asyncio.sleep(1)
+                
+                logger.debug("Closed stores loaded successfully.")
             except Exception as e:
-                logger.warning(f"Could not click closed stores button: {e}")
+                logger.warning(f"Could not load closed stores: {e}")
         else:
             logger.debug("'Show closed stores' button not found. Trying text click...")
-            # Last resort: click by text anywhere
             try:
+                initial_count = await page.locator('a[href*="/menu/"], a[href*="/delivery/"]').count()
                 await page.click("text=Δες τα κλειστά καταστήματα", timeout=TIMEOUT_CLOSED_STORES_TEXT)
                 try:
-                    await page.wait_for_load_state("networkidle", timeout=10000)
+                    await page.wait_for_function(
+                        f"document.querySelectorAll('a[href*=\"/menu/\"], a[href*=\"/delivery/\"]').length > {initial_count}",
+                        timeout=10000
+                    )
                 except Exception:
                     pass
                 logger.debug("Clicked via text selector.")
